@@ -1,4 +1,6 @@
-# Buscaminas Distribuido
+# Buscaminas
+
+### José Nicolás Lesmes - Juan Camilo Camacho
 
 Aplicacion web de Buscaminas hecha con Flask y Python. La interfaz se abre en el navegador y el juego expone una API interna para crear partidas, revelar celdas y marcar banderas.
 
