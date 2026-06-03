@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buscaminas Distribuido</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="layout">
+        <section class="header-card reveal">
+            <h1>Buscaminas</h1>
+            <p>Modo clasico con motor paralelo y tablero distribuido por workers.</p>
+        </section>
+
+        <section class="panel reveal delay-1">
+            <div class="controls">
+                <label>
+                    Filas
+                    <input type="number" id="rows" value="10" min="5" max="24">
+                </label>
+                <label>
+                    Columnas
+                    <input type="number" id="cols" value="10" min="5" max="24">
+                </label>
+                <label>
+                    Minas
+                    <input type="number" id="mines" value="15" min="1" max="120">
+                </label>
+                <label>
+                    Workers
+                    <select id="workers">
+                        <option value="2">2</option>
+                        <option value="4" selected>4</option>
+                        <option value="6">6</option>
+                        <option value="8">8</option>
+                    </select>
+                </label>
+                <button id="newGameBtn" class="primary">Nuevo juego</button>
+            </div>
+
+            <div class="quick-info">
+                <p><strong>Control:</strong> click izquierdo revela, click derecho pone bandera.</p>
+                <p id="liveMetrics">Workers: 0 | Ops distribuidas: 0</p>
+            </div>
+        </section>
+
+        <section class="board-wrap reveal delay-2">
+            <div id="board" class="board" aria-label="Tablero de buscaminas"></div>
+            <div id="status" class="status"></div>
+        </section>
+
+        <section class="panel reveal delay-3">
+            <h2>Metricas y validacion del motor</h2>
+            <div id="performanceMetrics" class="metrics-grid"></div>
+        </section>
+    </main>
+    
+    <script>
+        let gameId = null;
+        let rows = 10, cols = 10;
+        let gameEnded = false;
+
+        const numberClass = {
+            '1': 'n1',
+            '2': 'n2',
+            '3': 'n3',
+            '4': 'n4',
+            '5': 'n5',
+            '6': 'n6',
+            '7': 'n7',
+            '8': 'n8',
+        };
+        
+        function createBoard(boardData) {
+            const boardElement = document.getElementById('board');
+            const mobile = window.innerWidth <= 768;
+            const size = mobile ? 30 : 38;
+            boardElement.style.gridTemplateColumns = `repeat(${cols}, ${size}px)`;
+            boardElement.innerHTML = '';
+            
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    
+                    const value = boardData[i][j];
+                    if (value === 'hidden') {
+                        cell.classList.add('hidden');
+                    } else if (value === 'flag') {
+                        cell.classList.add('flag');
+                        cell.textContent = 'F';
+                    } else if (value === 'mine') {
+                        cell.classList.add('mine');
+                        cell.textContent = '*';
+                    } else if (value === 'empty') {
+                        cell.classList.add('revealed');
+                    } else {
+                        cell.classList.add('revealed');
+                        cell.textContent = value;
+                        if (numberClass[value]) {
+                            cell.classList.add(numberClass[value]);
+                        }
+                    }
+                    
+                    cell.addEventListener('click', () => handleCellClick(i, j));
+                    cell.addEventListener('contextmenu', (event) => {
+                        event.preventDefault();
+                        handleFlag(i, j);
+                    });
+                    
+                    boardElement.appendChild(cell);
+                }
+            }
+        }
+        
+        async function handleCellClick(fila, columna) {
+            if (!gameId || gameEnded) return;
+
+            try {
+                const response = await fetch('/reveal', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({game_id: gameId, fila: fila, columna: columna})
+                });
+                const data = await response.json();
+
+                if (data.error) {
+                    showStatus(data.error, 'losing');
+                    return;
+                }
+
+                updateBoard(data.tablero);
+                updateMetrics(data.metrics);
+
+                if (data.game_over) {
+                    gameEnded = true;
+                    if (data.victoria) {
+                        showStatus('Victoria: encontraste todas las celdas seguras.', 'winning');
+                    } else if (data.result === 'mina') {
+                        showStatus('Derrota: pisaste una mina. Se revelaron todas.', 'losing');
+                    }
+                }
+            } catch (error) {
+                showStatus('Error de red al revelar celda.', 'losing');
+            }
+        }
+
+        async function handleFlag(fila, columna) {
+            if (!gameId || gameEnded) return;
+
+            try {
+                const response = await fetch('/flag', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({game_id: gameId, fila: fila, columna: columna})
+                });
+                const data = await response.json();
+
+                if (!data.error) {
+                    updateBoard(data.tablero);
+                    updateMetrics(data.metrics);
+                }
+            } catch (error) {
+                showStatus('Error de red al marcar bandera.', 'losing');
+            }
+        }
+        
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+
+        function updateBoard(boardData) {
+            createBoard(boardData);
+        }
+        
+        function updateMetrics(metrics) {
+            if (metrics) {
+                const regiones = metrics.regiones_distribuidas
+                    .map((r) => `W${r.worker}: ${r.columnas} cols, ${r.minas_asignadas} minas`)
+                    .join(' | ');
+
+                document.getElementById('liveMetrics').textContent =
+                    `Workers: ${metrics.num_workers} | Ops distribuidas: ${metrics.total_ops_distribuidas} | Promedio paralelo: ${metrics.tiempo_promedio_paralelo.toFixed(4)} s`;
+
+                document.getElementById('performanceMetrics').innerHTML = `
+                    <article class="metric-card">
+                        <h3>Estado del juego</h3>
+                        <p>Tablero: ${metrics.tablero_size}</p>
+                        <p>Total minas: ${metrics.total_minas}</p>
+                        <p>Workers activos: ${metrics.num_workers}</p>
+                    </article>
+                    <article class="metric-card">
+                        <h3>Paralelismo</h3>
+                        <p>Calculos de celdas: ${metrics.calculos_celdas}</p>
+                        <p>Tareas BFS paralelas: ${metrics.tareas_paralelas}</p>
+                        <p>Tiempo promedio: ${metrics.tiempo_promedio_paralelo.toFixed(4)} s</p>
+                    </article>
+                    <article class="metric-card">
+                        <h3>Distribucion</h3>
+                        <p>Operaciones distribuidas: ${metrics.total_ops_distribuidas}</p>
+                        <p>Inicializacion: ${metrics.tiempo_inicializacion.toFixed(4)} s</p>
+                        <p>Ultima jugada: ${metrics.tiempo_ultima_jugada.toFixed(4)} s</p>
+                    </article>
+                    <article class="metric-card metric-wide">
+                        <h3>Validacion de particion por worker</h3>
+                        <p>${regiones || 'Sin datos de regiones.'}</p>
+                    </article>
+                `;
+            }
+        }
+        
+        async function newGame() {
+            rows = parseInt(document.getElementById('rows').value);
+            cols = parseInt(document.getElementById('cols').value);
+            const mines = parseInt(document.getElementById('mines').value);
+            const workers = parseInt(document.getElementById('workers').value);
+            
+            if (mines >= rows * cols) {
+                showStatus('Las minas deben ser menores al total de celdas.', 'losing');
+                return;
+            }
+
+            try {
+                const response = await fetch('/new_game', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        filas: rows,
+                        columnas: cols,
+                        minas: mines,
+                        workers: workers
+                    })
+                });
+
+                const data = await response.json();
+                gameId = data.game_id;
+                rows = data.filas;
+                cols = data.columnas;
+                gameEnded = false;
+
+                showStatus('Juego listo. Revela una celda para comenzar.', '');
+                updateBoard(data.tablero);
+                updateMetrics(data.metrics);
+            } catch (error) {
+                showStatus('No se pudo iniciar el juego.', 'losing');
+            }
+        }
+        
+        document.getElementById('newGameBtn').addEventListener('click', newGame);
+        window.addEventListener('resize', () => {
+            const board = document.querySelectorAll('#board .cell').length;
+            if (board > 0) {
+                const current = Array.from(document.querySelectorAll('#board .cell')).map((cell) => {
+                    if (cell.classList.contains('hidden')) return 'hidden';
+                    if (cell.classList.contains('flag')) return 'flag';
+                    if (cell.classList.contains('mine')) return 'mine';
+                    const text = cell.textContent.trim();
+                    return text === '' ? 'empty' : text;
+                });
+                const rebuilt = [];
+                for (let i = 0; i < rows; i++) {
+                    rebuilt.push(current.slice(i * cols, (i + 1) * cols));
+                }
+                createBoard(rebuilt);
+            }
+        });
+        
+        newGame();
+    </script>
+</body>
+</html>
