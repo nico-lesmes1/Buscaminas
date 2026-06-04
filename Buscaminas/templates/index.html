@@ -9,8 +9,12 @@
 <body>
     <main class="layout">
         <section class="header-card reveal">
-            <h1>Buscaminas</h1>
-            <p>Modo clasico con motor paralelo y tablero distribuido por workers.</p>
+            <h1>Buscaminas Distribuido</h1>
+            <p>Modo clásico impulsado por un motor distribuido real de Apache Spark y paralelismo de CPU nativo.</p>
+            <div class="badges">
+                <span class="badge spark-badge"><span class="pulse-green"></span> PySpark: Conectado</span>
+                <span class="badge mp-badge">Multiprocessing: Activo</span>
+            </div>
         </section>
 
         <section class="panel reveal delay-1">
@@ -89,10 +93,10 @@
                         cell.classList.add('hidden');
                     } else if (value === 'flag') {
                         cell.classList.add('flag');
-                        cell.textContent = 'F';
+                        cell.textContent = '🚩';
                     } else if (value === 'mine') {
                         cell.classList.add('mine');
-                        cell.textContent = '*';
+                        cell.textContent = '💣';
                     } else if (value === 'empty') {
                         cell.classList.add('revealed');
                     } else {
@@ -116,6 +120,8 @@
         
         async function handleCellClick(fila, columna) {
             if (!gameId || gameEnded) return;
+            const board = document.getElementById('board');
+            board.classList.add('waiting');
 
             try {
                 const response = await fetch('/reveal', {
@@ -143,11 +149,15 @@
                 }
             } catch (error) {
                 showStatus('Error de red al revelar celda.', 'losing');
+            } finally {
+                board.classList.remove('waiting');
             }
         }
 
         async function handleFlag(fila, columna) {
             if (!gameId || gameEnded) return;
+            const board = document.getElementById('board');
+            board.classList.add('waiting');
 
             try {
                 const response = await fetch('/flag', {
@@ -163,6 +173,8 @@
                 }
             } catch (error) {
                 showStatus('Error de red al marcar bandera.', 'losing');
+            } finally {
+                board.classList.remove('waiting');
             }
         }
         
@@ -199,10 +211,11 @@
                         <p>Tiempo promedio: ${metrics.tiempo_promedio_paralelo.toFixed(4)} s</p>
                     </article>
                     <article class="metric-card">
-                        <h3>Distribucion</h3>
+                        <h3>Distribución (PySpark)</h3>
                         <p>Operaciones distribuidas: ${metrics.total_ops_distribuidas}</p>
-                        <p>Inicializacion: ${metrics.tiempo_inicializacion.toFixed(4)} s</p>
-                        <p>Ultima jugada: ${metrics.tiempo_ultima_jugada.toFixed(4)} s</p>
+                        <p>Etapas Spark: ${metrics.spark_stages ?? 0}</p>
+                        <p>Inicialización: ${metrics.tiempo_inicializacion.toFixed(4)} s</p>
+                        <p>Última jugada: ${metrics.tiempo_ultima_jugada.toFixed(4)} s</p>
                     </article>
                     <article class="metric-card metric-wide">
                         <h3>Validacion de particion por worker</h3>

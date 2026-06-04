@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
 :root {
 	--bg-0: #111318;
 	--bg-1: #1a1f27;
@@ -22,7 +24,7 @@
 body {
 	margin: 0;
 	min-height: 100vh;
-	font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+	font-family: 'Outfit', sans-serif;
 	color: var(--text);
 	background:
 		radial-gradient(circle at 10% 15%, rgba(240, 179, 90, 0.12), transparent 28%),
@@ -189,14 +191,14 @@ button:hover {
 	color: var(--revealed-text);
 }
 
-.n1 { color: #0f5ecf; }
-.n2 { color: #238545; }
-.n3 { color: #bc2a2a; }
-.n4 { color: #7341b1; }
-.n5 { color: #a95722; }
-.n6 { color: #12808b; }
-.n7 { color: #252b33; }
-.n8 { color: #5a6170; }
+.cell.revealed.n1 { color: #0f5ecf; font-weight: 800; }
+.cell.revealed.n2 { color: #1c7c3d; font-weight: 800; }
+.cell.revealed.n3 { color: #bc2a2a; font-weight: 800; }
+.cell.revealed.n4 { color: #692ea4; font-weight: 800; }
+.cell.revealed.n5 { color: #a04913; font-weight: 800; }
+.cell.revealed.n6 { color: #0a737d; font-weight: 800; }
+.cell.revealed.n7 { color: #1a1f27; font-weight: 800; }
+.cell.revealed.n8 { color: #4b5260; font-weight: 800; }
 
 .status {
 	margin-top: 10px;
@@ -302,3 +304,50 @@ button:hover {
 		grid-template-columns: 1fr;
 	}
 }
+
+.pulse-green {
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: #39a86b;
+	box-shadow: 0 0 0 0 rgba(57, 168, 107, 0.7);
+	animation: pulse 1.6s infinite;
+	margin-right: 6px;
+	vertical-align: middle;
+}
+
+@keyframes pulse {
+	0% {
+		transform: scale(0.95);
+		box-shadow: 0 0 0 0 rgba(57, 168, 107, 0.7);
+	}
+	70% {
+		transform: scale(1);
+		box-shadow: 0 0 0 8px rgba(57, 168, 107, 0);
+	}
+	100% {
+		transform: scale(0.95);
+		box-shadow: 0 0 0 0 rgba(57, 168, 107, 0);
+	}
+}
+
+.cell {
+	transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.cell.hidden:hover {
+	transform: scale(1.08);
+	filter: brightness(1.2);
+}
+
+.board.waiting {
+	cursor: wait !important;
+	opacity: 0.8;
+	pointer-events: none;
+}
+
+.board.waiting .cell {
+	cursor: wait !important;
+}
+
